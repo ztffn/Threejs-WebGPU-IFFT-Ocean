@@ -3,124 +3,84 @@
 import { useThree, useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three/webgpu';
-import { pass, mrt, output, uv, uniform, vec2, mix, distance, smoothstep, mul, vec4, vec3, If, abs } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { smaa } from 'three/addons/tsl/display/SMAANode.js';
+import { pass, toneMapping, uniform } from 'three/tsl';
+import {
+  aerialPerspective,
+  AtmosphereContextNode,
+  StarsNode,
+} from '@takram/three-atmosphere/webgpu';
+import { lensFlare, dithering } from '@takram/three-geospatial/webgpu';
+import type { AtmosphereSettings } from './AtmosphereLayer';
+
+const STARS_ASSET_PATH = '/atmosphere/stars.bin';
 
 interface PostProcessingProps {
   enabled: boolean;
-  bloom?: {
-    enabled: boolean;
-    intensity: number;
-    threshold: number;
-    smoothing: number;
-  };
   toneMapping?: {
-    enabled: boolean;
     exposure: number;
-    mode: THREE.ToneMapping;
   };
-  vignette?: {
-    enabled: boolean;
-    offset: number;
-    intensity: number;
+  lensFlare?: {
+    bloomIntensity: number;
   };
+  atmosphereContext: AtmosphereContextNode | null;
+  atmosphereSettings: AtmosphereSettings;
 }
 
 export default function PostProcessing({
   enabled,
-  bloom: bloomSettings,
-  toneMapping,
-  vignette: vignetteSettings,
+  toneMapping: toneMappingSettings,
+  lensFlare: lensFlareSettings,
+  atmosphereContext,
+  atmosphereSettings,
 }: PostProcessingProps) {
   const { gl, scene, camera, size } = useThree();
   const renderer = gl as unknown as THREE.WebGPURenderer;
   const postProcessingRef = useRef<THREE.PostProcessing | null>(null);
+  const starsNodeRef = useRef<StarsNode | null>(null);
 
   useEffect(() => {
-    if (!enabled || !renderer || !scene || !camera) {
+    if (!enabled || !renderer || !scene || !camera || !atmosphereContext) {
       postProcessingRef.current = null;
       return;
     }
 
     try {
-      // Create scene pass
       const scenePass = pass(scene, camera, {
-        minFilter: THREE.LinearFilter,
-        magFilter: THREE.LinearFilter,
+        samples: 0,
       });
+      const colorNode = scenePass.getTextureNode('output');
+      const depthNode = scenePass.getTextureNode('depth');
 
-      // Setup Multiple Render Targets (MRT) for additional data
-      scenePass.setMRT(
-        mrt({
-          output: output,
-        })
-      );
-
-      // Get scene texture
-      const scenePassColor = scenePass.getTextureNode('output');
-
-      // Build output node starting with scene color
-      // Ensure it's treated as a color vector (vec4)
-      let outputNode: any = vec4(scenePassColor);
-
-      // Add bloom if enabled
-      if (bloomSettings?.enabled) {
-        const bloomPass = bloom(
-          scenePassColor,
-          bloomSettings.intensity || 2.5,
-          bloomSettings.smoothing || 0.5,
-          bloomSettings.threshold || 0.6
-        );
-        // Add bloom to scene color
-        outputNode = outputNode.add(bloomPass);
+      const aerialNode = aerialPerspective(atmosphereContext, colorNode, depthNode);
+      const skyNode = (aerialNode as any).skyNode;
+      if (skyNode) {
+        skyNode.showSun = atmosphereSettings.showSun;
+        skyNode.showMoon = atmosphereSettings.showMoon;
+        skyNode.showStars = atmosphereSettings.showStars;
+        starsNodeRef.current?.dispose();
+        const starsNode = new StarsNode(atmosphereContext, STARS_ASSET_PATH);
+        starsNode.intensity.value = atmosphereSettings.showStars ? 1 : 0;
+        starsNodeRef.current = starsNode;
+        skyNode.starsNode = starsNode;
       }
 
-      // Add vignette if enabled
-      if (vignetteSettings?.enabled) {
-        const uvNode = uv();
-        const offset = uniform(vignetteSettings.offset || 0.5);
-        const intensity = uniform(vignetteSettings.intensity ?? -0.5);
-        
-        // Calculate distance from center (0.5, 0.5)
-        const center = vec2(0.5, 0.5);
-        const dist = distance(uvNode, center);
-        
-        // Create vignette mask using smoothstep
-        const maxDist = 0.707; // Maximum distance to corner
-        const distNormalized = mul(dist, 1.0 / maxDist);
-        
-        // Create smooth vignette falloff
-        const vignetteAmount = smoothstep(offset, 1.0, distNormalized);
-        
-        // Determine target color based on intensity sign
-        // Intensity > 0: White (Brighten)
-        // Intensity < 0: Black (Darken)
-        const targetColor = vec3(
-            mix(0.0, 1.0, intensity.greaterThan(0))
-        );
-
-        // Mix current color with target color based on absolute intensity and vignette amount
-        const mixFactor = mul(abs(intensity), vignetteAmount);
-        
-        // Apply only to RGB channels
-        const rgb = mix(outputNode.rgb, targetColor, mixFactor);
-        outputNode = vec4(rgb, outputNode.a);
+      let outputNode: any = aerialNode;
+      const lensFlareNode = lensFlare(outputNode);
+      if (lensFlareSettings?.bloomIntensity != null) {
+        lensFlareNode.bloomIntensity.value = lensFlareSettings.bloomIntensity;
       }
 
-      // Add SMAA anti-aliasing
-      outputNode = smaa(outputNode);
+      const exposure = toneMappingSettings?.exposure ?? 10;
+      const toneNode = toneMapping(THREE.AgXToneMapping, uniform(exposure), lensFlareNode);
+      const finalNode = toneNode.add(dithering);
 
-      // Setup post-processing with output node
       const postProcessing = new THREE.PostProcessing(renderer);
-      postProcessing.outputNode = outputNode;
+      postProcessing.outputNode = finalNode;
       postProcessingRef.current = postProcessing;
 
-      // Handle resize
       const handleResize = () => {
-        // Cast to any to access setSize if it exists (it's in the reference implementation but maybe missing from types)
         const pp = postProcessingRef.current as any;
-        if (pp && pp.setSize) {
+        if (pp?.setSize) {
           pp.setSize(size.width, size.height);
           pp.needsUpdate = true;
         }
@@ -130,34 +90,32 @@ export default function PostProcessing({
 
       return () => {
         postProcessingRef.current = null;
+        starsNodeRef.current?.dispose();
+        starsNodeRef.current = null;
       };
     } catch (error) {
-      console.error('Failed to initialize post-processing:', error);
+      console.error('Failed to initialize Takram post-processing:', error);
       postProcessingRef.current = null;
     }
-  }, [enabled, renderer, scene, camera, size, bloomSettings, vignetteSettings]);
+  }, [
+    atmosphereContext,
+    atmosphereSettings.showMoon,
+    atmosphereSettings.showStars,
+    atmosphereSettings.showSun,
+    camera,
+    enabled,
+    lensFlareSettings,
+    renderer,
+    scene,
+    size,
+    toneMappingSettings,
+  ]);
 
-  // Update tone mapping in real-time (works directly on renderer)
-  useEffect(() => {
-    if (!renderer || !enabled) return;
-    
-    if (toneMapping?.enabled) {
-      renderer.toneMapping = toneMapping.mode;
-      renderer.toneMappingExposure = toneMapping.exposure;
-    } else {
-      renderer.toneMapping = THREE.NoToneMapping;
-      renderer.toneMappingExposure = 1.0;
-    }
-  }, [renderer, enabled, toneMapping]);
-
-  // Render post-processing in useFrame with priority 1 (after main render)
   useFrame(() => {
-    if (enabled && postProcessingRef.current) {
-      renderer.clear();
+    if (postProcessingRef.current) {
       postProcessingRef.current.render();
     }
   }, 1);
 
   return null;
 }
-

@@ -8,10 +8,11 @@ import OceanChunkManager from '../src/ocean/ocean.js';
 
 interface OceanChunksProps {
   waveGenerator: any;
+  sunDirection: THREE.Vector3 | null;
   onOceanManagerReady?: (oceanManager: any) => void;
 }
 
-export default function OceanChunks({ waveGenerator, onOceanManagerReady }: OceanChunksProps) {
+export default function OceanChunks({ waveGenerator, sunDirection, onOceanManagerReady }: OceanChunksProps) {
   const { gl, scene, camera } = useThree();
   const oceanManagerRef = useRef<any>(null);
   const initializedRef = useRef(false);
@@ -92,7 +93,12 @@ export default function OceanChunks({ waveGenerator, onOceanManagerReady }: Ocea
         oceanManagerRef.current.Destroy?.();
       }
     };
-  }, [waveGenerator, gl, scene, camera]);
+  }, [waveGenerator, gl, scene, camera, onOceanManagerReady]);
+
+  useEffect(() => {
+    if (!sunDirection || !oceanManagerRef.current?.SetSunDirection) return;
+    oceanManagerRef.current.SetSunDirection(sunDirection);
+  }, [sunDirection]);
 
   // Update ocean chunks each frame
   useFrame(async (state, delta) => {
