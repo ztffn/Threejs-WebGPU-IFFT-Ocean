@@ -88,6 +88,7 @@ class OceanBuilderThreadedWorker {
         const lod = this.params_.lod;
 
 		let idx = 0;
+		const MAX_DISTANCE_SQ = Math.pow(1e7, 2);
 
         for (let x = 0; x < resolution + 1; x++) {
             const xp = width * x / resolution;
@@ -99,6 +100,12 @@ class OceanBuilderThreadedWorker {
 				_P.add(offset);
 				_P.applyMatrix4(localToWorld);
 
+				// Clamp obviously invalid or extreme positions to avoid far‑away spikes
+				const lenSq = _P.x * _P.x + _P.y * _P.y + _P.z * _P.z;
+				if (!Number.isFinite(lenSq) || lenSq > MAX_DISTANCE_SQ) {
+					_P.set(offset.x, offset.y, offset.z);
+				}
+
 				positions.push(_P.x, _P.y, _P.z);
 				vindices.push(idx);
                 widths.push(width);
@@ -108,6 +115,16 @@ class OceanBuilderThreadedWorker {
 		}
 
 		const indices = this.GenerateIndices_();
+
+		// Sanity‑check indices against generated positions to avoid stray spikes
+		const maxIndex = (positions.length / 3) - 1;
+		for (let i = 0; i < indices.length; i++) {
+			if (!Number.isFinite(indices[i]) || indices[i] < 0 || indices[i] > maxIndex) {
+				indices[i] = 0;
+			}
+		}
+
+		// Generate normals after indices have been clamped
 		const normals = this.GenerateNormals_(positions, indices);
 		const bytesInFloat32 = 4;
 		const bytesInInt32 = 4;

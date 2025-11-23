@@ -1,8 +1,7 @@
 'use client';
 
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef, useState } from 'react';
-import { useControls } from 'leva';
+import { useEffect, useState } from 'react';
 import WaveGeneratorComponent from './WaveGenerator';
 import OceanChunks from './OceanChunks';
 import Sky from './Sky';
@@ -26,9 +25,7 @@ export default function OceanScene() {
   }, [gl, isInitialized]);
 
   // Animation loop
-  useFrame((state, delta) => {
-    const deltaTime = delta * 1000; // Convert to milliseconds
-
+  useFrame((_state, _delta) => {
     // Enable all camera layers
     camera.layers.enableAll();
   });

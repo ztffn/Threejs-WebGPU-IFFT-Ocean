@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer }) => {
-    // Handle workers
+    // Handle workers - allow them to be imported as modules
     config.module.rules.push({
       test: /\.worker\.js$/,
       use: { loader: 'worker-loader' },
+      type: 'asset/resource',
     });
 
     // Add aliases for Three.js WebGPU builds
@@ -14,6 +15,17 @@ const nextConfig = {
       'three/webgpu': path.resolve(__dirname, 'node_modules/three/build/three.webgpu.js'),
       'three/tsl': path.resolve(__dirname, 'node_modules/three/build/three.tsl.js'),
       'three/addons': path.resolve(__dirname, 'node_modules/three/examples/jsm'),
+    };
+    
+    // Allow importing workers as modules
+    if (!isServer) {
+      config.resolve.alias['src/ocean/ocean-builder-threaded-worker.js'] = path.resolve(__dirname, 'src/ocean/ocean-builder-threaded-worker.js');
+    }
+
+    // Enable top-level await for Three.js WebGPU modules
+    config.experiments = {
+      ...config.experiments,
+      topLevelAwait: true,
     };
 
     // Don't bundle these on the server
@@ -27,8 +39,6 @@ const nextConfig = {
 
     return config;
   },
-  // Enable static export for Vercel
-  output: 'standalone',
   // Required headers for WebGPU SharedArrayBuffer support
   async headers() {
     return [
@@ -46,10 +56,7 @@ const nextConfig = {
         ],
       },
     ];
-  },
-  // Optimize for production
-  reactStrictMode: true,
-  swcMinify: true,
+  }
 };
 
 module.exports = nextConfig;
