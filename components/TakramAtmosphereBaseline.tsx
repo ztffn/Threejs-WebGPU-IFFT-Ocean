@@ -130,6 +130,7 @@ const Content: FC = () => {
   }, [context, camera]);
 
   // Post-processing with controls:
+  const exposureUniformRef = useRef(uniform(exposure));
   const postProcessingData = useResource(
     () => {
       if (!context) return null;
@@ -141,7 +142,7 @@ const Content: FC = () => {
       skyNode.showMoon = showMoon;
 
       const lensFlareNode = lensFlare(skyNode);
-      const toneMappingNode = toneMapping(AgXToneMapping, uniform(exposure), lensFlareNode);
+      const toneMappingNode = toneMapping(AgXToneMapping, exposureUniformRef.current, lensFlareNode);
       const postProcessing = new PostProcessing(renderer);
       postProcessing.outputNode = toneMappingNode.add(dithering);
 
@@ -162,8 +163,8 @@ const Content: FC = () => {
   }, [postProcessingData, moonIntensity, starsIntensity, showSun, showMoon]);
 
   useEffect(() => {
-    if (postProcessingData?.toneMappingNode) {
-      postProcessingData.toneMappingNode.exposureNode.value = exposure;
+    exposureUniformRef.current.value = exposure;
+    if (postProcessingData?.postProcessing) {
       postProcessingData.postProcessing.needsUpdate = true;
     }
   }, [postProcessingData, exposure]);

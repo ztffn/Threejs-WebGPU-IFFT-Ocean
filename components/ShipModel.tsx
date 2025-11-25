@@ -29,7 +29,7 @@ export default function ShipModel() {
   const shipGroupRef = useRef<THREE.Group | null>(null);
 
   // Load GLB model (useGLTF handles caching automatically)
-  const gltf = useGLTF('/resources/3d/knorr/source/ship_small.glb');
+  const gltf = useGLTF('/resources/3d/knorr/knorr2/knor_sf2.glb');
 
   // Add/remove ship from scene
   useEffect(() => {

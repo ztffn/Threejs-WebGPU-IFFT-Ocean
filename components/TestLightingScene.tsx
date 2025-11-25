@@ -17,9 +17,9 @@ export default function TestLightingScene() {
   });
 
   // Create separate group for test lights
-  const testGroup = useRef<THREE.Group>();
-  const redLight = useRef<THREE.PointLight>();
-  const greenLight = useRef<THREE.PointLight>();
+  const testGroup = useRef<THREE.Group | null>(null);
+  const redLight = useRef<THREE.PointLight | null>(null);
+  const greenLight = useRef<THREE.PointLight | null>(null);
   const timeRef = useRef(0);
 
   // Initialize test lighting group

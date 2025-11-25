@@ -35,26 +35,31 @@ if (typeof window !== 'undefined') {
   // Patch DevTools hook early, before any renderers register
   // This intercepts registerRenderer calls and ensures version is always valid
   const hook = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
-  if (hook) {
-    const originalRegisterRenderer = hook.registerRenderer;
-    
-    hook.registerRenderer = function(renderer: any) {
-      // Ensure renderer has a valid version before registration
-      if (renderer && (!renderer.version || renderer.version === '')) {
-        // Use React.version if available, otherwise fallback
-        if (React && React.version && typeof React.version === 'string') {
-          renderer.version = React.version;
-        } else {
-          // Fallback to a valid semver matching React 19
-          renderer.version = '19.0.0';
-        }
-      }
+  if (hook && typeof hook.registerRenderer === 'function') {
+    // Only patch if not already patched
+    if (!hook._r3fVersionPatched) {
+      const originalRegisterRenderer = hook.registerRenderer;
       
-      // Call original registerRenderer if it exists
-      if (originalRegisterRenderer) {
-        return originalRegisterRenderer.apply(this, arguments);
-      }
-    };
+      hook.registerRenderer = function(renderer: any, ...args: any[]) {
+        // Ensure renderer has a valid version before registration
+        if (renderer && (!renderer.version || renderer.version === '')) {
+          // Use React.version if available, otherwise fallback
+          if (React && React.version && typeof React.version === 'string') {
+            renderer.version = React.version;
+          } else {
+            // Fallback to a valid semver matching React 19
+            renderer.version = '19.0.0';
+          }
+        }
+        
+        // Call original registerRenderer if it exists
+        if (originalRegisterRenderer && typeof originalRegisterRenderer === 'function') {
+          return originalRegisterRenderer.apply(this, [renderer, ...args]);
+        }
+      };
+      
+      hook._r3fVersionPatched = true;
+    }
     
     // Also patch any existing renderers that might have empty versions
     if (hook.renderers && Array.isArray(hook.renderers)) {

@@ -121,14 +121,13 @@ const TilesAtmosphereWebGPU: FC = () => {
       if (cesiumToken) {
         tilesRenderer = new TilesRendererClass('https://assets.cesium.com/2767062/tileset.json');
         tilesRenderer.setCamera(camera);
-        tilesRenderer.setResolutionFromRenderer(camera, renderer);
+        tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
         
         // Add Cesium Ion auth plugin
         const authPlugin = new CesiumIonAuthPlugin({
           apiToken: cesiumToken,
-          assetId: 2767062,
+          assetId: '2767062',
           autoRefreshToken: true,
-          useRecommendedSettings: true,
         });
         tilesRenderer.registerPlugin(authPlugin);
         
@@ -193,7 +192,7 @@ const TilesAtmosphereWebGPU: FC = () => {
         if (tilesRenderer) {
           tilesRenderer.update();
           tilesRenderer.setCamera(camera);
-          tilesRenderer.setResolutionFromRenderer(camera, renderer);
+          tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
         }
         
         postProcessing.render();
@@ -230,7 +229,7 @@ const TilesAtmosphereWebGPU: FC = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         
         if (tilesRenderer) {
-          tilesRenderer.setResolutionFromRenderer(camera, renderer);
+          tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
         }
       }
     };

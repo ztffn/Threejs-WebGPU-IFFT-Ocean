@@ -1,6 +1,6 @@
 'use client';
 
-import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, extend, type ThreeElement } from '@react-three/fiber';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useControls } from 'leva';
 import { TilesRenderer, TilesPlugin } from '3d-tiles-renderer/r3f';
@@ -33,7 +33,7 @@ extend({ AtmosphereLight });
 // TypeScript declaration for R3F
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    atmosphereLight: any;
+    atmosphereLight: ThreeElement<typeof AtmosphereLight>;
   }
 }
 
