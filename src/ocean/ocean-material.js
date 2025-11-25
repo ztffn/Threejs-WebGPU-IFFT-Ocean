@@ -78,7 +78,7 @@ class OceanMaterial extends entity.Component {
 			sunPosition: uniform(params.sunPosition)    
 		}
 
-		this.oceanMaterial = new THREE.MeshBasicNodeMaterial();
+		this.oceanMaterial = new THREE.MeshStandardNodeMaterial();
 		this.oceanMaterial.positionNode = vertexStageWGSL.vertexStageWGSL(wgslShaderParams);
 		this.oceanMaterial.colorNode = fragmentStageWGSL(wgslShaderParams);
 		this.oceanMaterial.side = THREE.DoubleSide;

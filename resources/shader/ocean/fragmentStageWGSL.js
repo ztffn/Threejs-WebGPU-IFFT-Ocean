@@ -102,7 +102,10 @@ export const fragmentStageWGSL = wgslFn(`
         
         oceanColor = mix(oceanColor, vec3<f32>(1), foam_mix_factor);
 
-        oceanColor = mix(SEACOLOR, oceanColor, vCascadeScales.x);
+        // FIXED: Preserve atmospheric lighting and reflections at distance
+        // Instead of destroying all colors, blend with background that includes reflections
+        var atmosphericBackground = reflectionColor * 0.4 + SEACOLOR * 0.6;
+        oceanColor = mix(atmosphericBackground, oceanColor, vCascadeScales.x);
 
 
         // Since the mipmaps quickly deplete over distance, a fog at that distance is necessary to avoid unsightly jitter. 

@@ -106,3 +106,5 @@ This is a **React Three Fiber (R3F)** port of a WebGPU IFFT Ocean simulation opt
 **Adding New Shaders:** Place WGSL files in `resources/shader/` and import via JavaScript modules
 
 **Debugging WebGPU Issues:** Check browser console for WebGPU errors, verify browser support, ensure proper CORS headers
+
+This document was written in november 2025

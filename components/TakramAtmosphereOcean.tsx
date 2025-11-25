@@ -15,7 +15,7 @@ import {
   getMoonDirectionECI,
   getSunDirectionECI
 } from '@takram/three-atmosphere';
-import { AtmosphereContextNode, sky, aerialPerspective, StarsNode } from '@takram/three-atmosphere/webgpu';
+import { AtmosphereContextNode, sky, aerialPerspective, StarsNode, AtmosphereLight, AtmosphereLightNode } from '@takram/three-atmosphere/webgpu';
 import { dithering, lensFlare } from '@takram/three-geospatial/webgpu';
 import { Ellipsoid, Geodetic, radians } from '@takram/three-geospatial';
 
@@ -105,6 +105,10 @@ const Content: FC = () => {
   });
 
   // Ocean color controls (for investigation - most colors are hardcoded in shader)
+  const { enableAtmosphereLight } = useControls('Ocean Atmosphere Integration', {
+    enableAtmosphereLight: { value: true, label: 'Enable Atmosphere Light' }
+  });
+
   const oceanColorControls = useControls('Ocean Colors (Investigation)', {
     // Note: These controls are for investigation only
     // Most ocean colors are hardcoded in fragmentStageWGSL.js as constants:
@@ -141,6 +145,16 @@ const Content: FC = () => {
     ctx.correctAltitude = true;
     return ctx;
   }, []);
+
+  // Create Takram atmosphere light for ocean lighting
+  const atmosphereLight = useResource(() => {
+    if (!context) return null;
+    const light = new AtmosphereLight(context, 500000); // 500km range like AtmosphereLayer
+    light.castShadow = false;
+    return light;
+  }, [context]);
+
+  const lightRegistered = useRef(false);
   
   // Set camera on context when both are available
   useEffect(() => {
@@ -148,6 +162,34 @@ const Content: FC = () => {
       context.camera = camera;
     }
   }, [context, camera]);
+
+  // Register the atmosphere light with the WebGPU renderer
+  useEffect(() => {
+    if (lightRegistered.current || !renderer) return;
+    renderer.library.addLight(AtmosphereLightNode, AtmosphereLight);
+    lightRegistered.current = true;
+    console.log('✅ Takram AtmosphereLight registered with WebGPU renderer');
+  }, [renderer]);
+
+  // Add atmosphere light to scene for ocean lighting
+  useEffect(() => {
+    if (!atmosphereLight || !scene) return;
+    
+    atmosphereLight.visible = enableAtmosphereLight;
+    
+    if (enableAtmosphereLight) {
+      scene.add(atmosphereLight);
+      console.log('✅ AtmosphereLight added to scene for ocean lighting');
+    } else {
+      scene.remove(atmosphereLight);
+      console.log('❌ AtmosphereLight removed from scene');
+    }
+    
+    return () => {
+      scene.remove(atmosphereLight);
+      atmosphereLight.dispose();
+    };
+  }, [atmosphereLight, scene, enableAtmosphereLight]);
 
   // Post-processing with controls:
   const exposureUniformRef = useRef(uniform(exposure));
