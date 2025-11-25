@@ -59,6 +59,7 @@ const Content: FC = () => {
   // Ocean state
   const [waveGenerator, setWaveGenerator] = useState<any>(null);
   const [sunDirection, setSunDirection] = useState<THREE.Vector3 | null>(null);
+  const [oceanManager, setOceanManager] = useState<any>(null);
 
   // Leva controls
   const {
@@ -101,6 +102,18 @@ const Content: FC = () => {
     torusKnotHeight: { value: 0.5, min: 0, max: 2, step: 0.1 },
     earthColor: { value: '#808080' },
     torusKnotColor: { value: '#ffffff' }
+  });
+
+  // Ocean color controls (for investigation - most colors are hardcoded in shader)
+  const oceanColorControls = useControls('Ocean Colors (Investigation)', {
+    // Note: These controls are for investigation only
+    // Most ocean colors are hardcoded in fragmentStageWGSL.js as constants:
+    // - SEACOLOR = vec3(0.004, 0.016, 0.047) - dark blue refraction
+    // - WAVECOLOR = vec3(0.14, 0.25, 0.18) - greenish wave tint  
+    // - Specular = vec3(5, 4.5, 4) - warm white specular highlight
+    // - Fog = vec3(0.0, 0.1, 0.2) - dark blue fog at distance
+    // Only sunPosition can be controlled via SetSunDirection()
+    info: { value: 'Most colors are hardcoded in shader - see research doc' }
   });
 
   // Compute position based on controls
@@ -292,6 +305,7 @@ const Content: FC = () => {
         <OceanChunks 
           waveGenerator={waveGenerator}
           sunDirection={sunDirection}
+          onOceanManagerReady={setOceanManager}
         />
       )}
     </>
