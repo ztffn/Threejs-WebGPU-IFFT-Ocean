@@ -1,0 +1,37 @@
+{
+  "name": "Average",
+  "description": "Standard open ocean conditions - moderate wind with balanced directional spreading",
+  "firstWave": {
+    "windSpeed": 12.0,
+    "windDirection": 0.0,
+    "fetch": 300000,
+    "spreadBlend": 0.8,
+    "swell": 0.5,
+    "peakEnhancement": 2.0,
+    "shortWaveFade": 0.05,
+    "fadeLimit": 0.1
+  },
+  "secondWave": {
+    "d_windSpeed": 8.0,
+    "d_windDirection": 4.188790204786391,
+    "d_fetch": 150000,
+    "d_spreadBlend": 0.8,
+    "d_swell": 0.3,
+    "d_peakEnhancement": 1.5,
+    "d_shortWaveFade": 0.05,
+    "d_fadeLimit": 0.1
+  },
+  "foam": {
+    "strength": 2.0,
+    "threshold": 2.0
+  },
+  "ocean": {
+    "lodScale": 5.0
+  },
+  "physics": {
+    "scenario": "Standard open ocean conditions",
+    "windSpeed10m": "12.0 m/s",
+    "seaState": "Slightly peaked (developing sea)",
+    "waveCharacteristics": "Moderate energy, mostly directional with angular spread"
+  }
+}

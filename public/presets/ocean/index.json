@@ -1,0 +1,25 @@
+{
+  "presets": [
+    {
+      "id": "calm",
+      "name": "Calm",
+      "file": "calm.json",
+      "category": "weather",
+      "tags": ["gentle", "peaceful", "light-wind"]
+    },
+    {
+      "id": "average",
+      "name": "Average", 
+      "file": "average.json",
+      "category": "weather",
+      "tags": ["standard", "moderate", "typical"]
+    },
+    {
+      "id": "storm",
+      "name": "Storm",
+      "file": "storm.json", 
+      "category": "weather",
+      "tags": ["intense", "dangerous", "high-energy"]
+    }
+  ]
+}

@@ -2,13 +2,15 @@
 
 import { OrbitControls, TorusKnot } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef, useState, useMemo, type FC } from 'react';
-import { useControls } from 'leva';
+import { useEffect, useRef, useState, useMemo, useCallback, type FC } from 'react';
+import { useControls, button } from 'leva';
 import * as THREE from 'three/webgpu';
 import WebGPU from 'three/examples/jsm/capabilities/WebGPU.js';
 import { AgXToneMapping } from 'three';
 import { toneMapping, uniform, pass, mix } from 'three/tsl';
 import { PostProcessing, type Renderer } from 'three/webgpu';
+// @ts-ignore - JS module
+import { wave_constants } from '../src/waves/wave-constants.js';
 
 import {
   getECIToECEFRotationMatrix,
@@ -44,6 +46,7 @@ function useResource<T>(factory: () => T, deps: React.DependencyList): T | null 
         (newResource as any).dispose();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   
   return resource;
@@ -113,15 +116,223 @@ const Content: FC = () => {
     nightAmbientLevel: { value: 0.05, min: 0, max: 0.3, step: 0.01, label: 'Night Ambient Level' }
   });
 
-  const oceanColorControls = useControls('Ocean Colors (Investigation)', {
-    // Note: These controls are for investigation only
-    // Most ocean colors are hardcoded in fragmentStageWGSL.js as constants:
-    // - SEACOLOR = vec3(0.004, 0.016, 0.047) - dark blue refraction
-    // - WAVECOLOR = vec3(0.14, 0.25, 0.18) - greenish wave tint  
-    // - Specular = vec3(5, 4.5, 4) - warm white specular highlight
-    // - Fog = vec3(0.0, 0.1, 0.2) - dark blue fog at distance
-    // Only sunPosition can be controlled via SetSunDirection()
-    info: { value: 'Most colors are hardcoded in shader - see research doc' }
+  // Ocean Presets - loaded from JSON files
+  const [availablePresets, setAvailablePresets] = useState<any[]>([]);
+  const [loadedPresets, setLoadedPresets] = useState<Record<string, any>>({});
+
+  // Load available presets on mount
+  useEffect(() => {
+    const loadPresets = async () => {
+      try {
+        console.log('🔄 Loading ocean presets...');
+        
+        // Load preset index
+        const indexResponse = await fetch('/presets/ocean/index.json');
+        if (!indexResponse.ok) {
+          throw new Error(`Failed to load index: ${indexResponse.status}`);
+        }
+        const index = await indexResponse.json();
+        console.log('📋 Preset index loaded:', index);
+        
+        // Load each preset file
+        const presets: Record<string, any> = {};
+        for (const presetInfo of index.presets) {
+          console.log(`📄 Loading preset: ${presetInfo.file}`);
+          const presetResponse = await fetch(`/presets/ocean/${presetInfo.file}`);
+          if (!presetResponse.ok) {
+            throw new Error(`Failed to load ${presetInfo.file}: ${presetResponse.status}`);
+          }
+          const preset = await presetResponse.json();
+          presets[preset.name] = preset;
+          console.log(`✅ Loaded preset: ${preset.name}`);
+        }
+        
+        setAvailablePresets(index.presets);
+        setLoadedPresets(presets);
+        console.log('✅ All ocean presets loaded:', Object.keys(presets));
+      } catch (error) {
+        console.error('❌ Failed to load ocean presets:', error);
+        // Fallback to empty state - controls will still work
+        setAvailablePresets([]);
+        setLoadedPresets({});
+      }
+    };
+    
+    loadPresets();
+  }, []);
+
+  // Function to export current wave settings as JSON
+  const exportCurrentSettings = () => {
+    const currentSettings = {
+      name: "Custom",
+      firstWave: {} as any,
+      secondWave: {} as any,
+      foam: {
+        strength: wave_constants.FOAM_STRENGTH.value,
+        threshold: wave_constants.FOAM_THRESHOLD.value
+      },
+      ocean: {
+        lodScale: wave_constants.LOD_SCALE.value
+      },
+      exportedAt: new Date().toISOString()
+    };
+
+    // Capture first wave parameters
+    Object.keys(wave_constants.FIRST_WAVE_DATASET).forEach(key => {
+      if (wave_constants.FIRST_WAVE_DATASET[key]) {
+        currentSettings.firstWave[key] = wave_constants.FIRST_WAVE_DATASET[key].value;
+      }
+    });
+
+    // Capture second wave parameters  
+    Object.keys(wave_constants.SECOND_WAVE_DATASET).forEach(key => {
+      if (wave_constants.SECOND_WAVE_DATASET[key]) {
+        currentSettings.secondWave[key] = wave_constants.SECOND_WAVE_DATASET[key].value;
+      }
+    });
+
+    // Create formatted JSON with readable structure
+    const jsonString = JSON.stringify(currentSettings, null, 2);
+    
+    // Create and trigger download
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ocean-preset-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log('✅ Ocean settings exported:', currentSettings);
+    return currentSettings;
+  };
+
+  // Preset Controls - use dependency array to make options reactive to state changes
+  const presetOptions = Object.keys(loadedPresets);
+  const hasPresets = presetOptions.length > 0;
+  
+  const presetControls = useControls('Ocean Presets', {
+    preset: { 
+      value: hasPresets ? (presetOptions.includes('Average') ? 'Average' : presetOptions[0]) : 'Loading...', 
+      options: hasPresets ? presetOptions : ['Loading...']
+    },
+    'Export Current Settings': button(() => exportCurrentSettings())
+  }, [presetOptions]); // Add dependency array so options update when presets load
+  
+  const preset = presetControls.preset;
+
+  // Function to apply a preset to wave constants
+  const applyPreset = useCallback((preset: any) => {
+    if (!preset) return;
+
+    // Apply first wave parameters
+    if (preset.firstWave) {
+      Object.keys(preset.firstWave).forEach(key => {
+        if (wave_constants.FIRST_WAVE_DATASET[key]) {
+          wave_constants.FIRST_WAVE_DATASET[key].value = preset.firstWave[key];
+        }
+      });
+    }
+
+    // Apply second wave parameters
+    if (preset.secondWave) {
+      Object.keys(preset.secondWave).forEach(key => {
+        if (wave_constants.SECOND_WAVE_DATASET[key]) {
+          wave_constants.SECOND_WAVE_DATASET[key].value = preset.secondWave[key];
+        }
+      });
+    }
+
+    // Apply foam settings
+    if (preset.foam) {
+      if (preset.foam.strength !== undefined) {
+        wave_constants.FOAM_STRENGTH.value = preset.foam.strength;
+      }
+      if (preset.foam.threshold !== undefined) {
+        wave_constants.FOAM_THRESHOLD.value = preset.foam.threshold;
+      }
+    }
+
+    // Apply ocean settings
+    if (preset.ocean) {
+      if (preset.ocean.lodScale !== undefined) {
+        wave_constants.LOD_SCALE.value = preset.ocean.lodScale;
+      }
+    }
+
+    // Update cascades if they exist
+    if (waveGenerator?.cascades) {
+      for (let i in waveGenerator.cascades) {
+        waveGenerator.cascades[i].initialSpectrum?.Update();
+      }
+    }
+
+    console.log(`✅ Applied ${preset.name} ocean preset with LOD scale: ${preset.ocean?.lodScale}`);
+  }, [waveGenerator]);
+
+  // Build first wave spectrum controls object
+  const firstWaveControls: any = {};
+  for (const param in wave_constants.FIRST_WAVE_DATASET) {
+    if (wave_constants.FIRST_WAVE_DATASET.hasOwnProperty(param)) {
+      const borders = wave_constants.FIRST_WAVE_BORDERS[param];
+      firstWaveControls[param] = {
+        value: wave_constants.FIRST_WAVE_DATASET[param].value,
+        min: borders.min,
+        max: borders.max,
+        step: 0.001,
+      };
+    }
+  }
+
+  // Build second wave spectrum controls object
+  const secondWaveControls: any = {};
+  for (const param in wave_constants.SECOND_WAVE_DATASET) {
+    if (wave_constants.SECOND_WAVE_DATASET.hasOwnProperty(param)) {
+      const borders = wave_constants.SECOND_WAVE_BORDERS[param];
+      secondWaveControls[param] = {
+        value: wave_constants.SECOND_WAVE_DATASET[param].value,
+        min: borders.min,
+        max: borders.max,
+        step: 0.001,
+      };
+    }
+  }
+
+  // First Wave Spectrum Controls
+  const firstWaveParams = useControls('First Wave Spectrum', firstWaveControls);
+
+  // Second Wave Spectrum Controls
+  const secondWaveParams = useControls('Second Wave Spectrum', secondWaveControls);
+
+  // Foam Controls
+  const foamParams = useControls('Foam', {
+    strength: {
+      value: wave_constants.FOAM_STRENGTH.value,
+      min: 0,
+      max: 5,
+      step: 0.1,
+    },
+    threshold: {
+      value: wave_constants.FOAM_THRESHOLD.value,
+      min: 0,
+      max: 5,
+      step: 0.1,
+    },
+  });
+
+  // Ocean Controls
+  const oceanParams = useControls('Ocean', {
+    lodScale: {
+      value: wave_constants.LOD_SCALE.value,
+      min: 0,
+      max: 20,
+      step: 0.1,
+    },
+    wireframe: {
+      value: false,
+    },
   });
 
   // Compute position based on controls
@@ -220,14 +431,6 @@ const Content: FC = () => {
     () => {
       if (!context || !renderer || !scene || !camera) return null;
       
-      // Ensure context is updated with current position and date before creating post-processing
-      // This ensures the sky calculates correctly
-      Ellipsoid.WGS84.getNorthUpEastFrame(position, context.matrixWorldToECEF.value);
-      const { matrixECIToECEF, sunDirectionECEF, moonDirectionECEF } = context;
-      getECIToECEFRotationMatrix(date, matrixECIToECEF.value);
-      getSunDirectionECI(date, sunDirectionECEF.value).applyMatrix4(matrixECIToECEF.value);
-      getMoonDirectionECI(date, moonDirectionECEF.value).applyMatrix4(matrixECIToECEF.value);
-      
       // Render the scene (ocean and objects) first
       const scenePass = pass(scene, camera, { samples: 0 });
       const colorNode = scenePass.getTextureNode('output');
@@ -256,7 +459,7 @@ const Content: FC = () => {
 
       return { postProcessing, skyNode, toneMappingNode };
     },
-    [renderer, context, scene, camera, moonIntensity, starsIntensity, showSun, showMoon, position, date]
+    [renderer, context, scene, camera, moonIntensity, starsIntensity, showSun, showMoon]
   );
 
   // Update dynamic controls
@@ -328,7 +531,57 @@ const Content: FC = () => {
     if (postProcessingData?.postProcessing) {
       postProcessingData.postProcessing.needsUpdate = true;
     }
-  }, [context, date, position]); // Removed postProcessingData from deps to prevent infinite loop
+  }, [context, date, position, postProcessingData]);
+
+  // Update wave constants when controls change
+  useEffect(() => {
+    if (!waveGenerator) return;
+
+    // Update first wave spectrum
+    for (const param in firstWaveParams) {
+      if (wave_constants.FIRST_WAVE_DATASET[param]) {
+        wave_constants.FIRST_WAVE_DATASET[param].value = firstWaveParams[param];
+      }
+    }
+
+    // Update second wave spectrum
+    for (const param in secondWaveParams) {
+      if (wave_constants.SECOND_WAVE_DATASET[param]) {
+        wave_constants.SECOND_WAVE_DATASET[param].value = secondWaveParams[param];
+      }
+    }
+
+    // Update foam
+    wave_constants.FOAM_STRENGTH.value = foamParams.strength;
+    wave_constants.FOAM_THRESHOLD.value = foamParams.threshold;
+
+    // Update LOD scale
+    wave_constants.LOD_SCALE.value = oceanParams.lodScale;
+
+    // Update cascades if they exist
+    if (waveGenerator.cascades) {
+      for (let i in waveGenerator.cascades) {
+        waveGenerator.cascades[i].initialSpectrum?.Update();
+      }
+    }
+  }, [firstWaveParams, secondWaveParams, foamParams, oceanParams.lodScale, waveGenerator]);
+
+  // Update ocean wireframe - directly update the ocean material
+  useEffect(() => {
+    if (!oceanManager?.material_) return;
+    
+    oceanManager.material_.wireframe = oceanParams.wireframe;
+  }, [oceanParams.wireframe, oceanManager]);
+
+  // Apply preset when selected
+  useEffect(() => {
+    if (!waveGenerator || !preset || preset === 'Loading...' || preset === 'None') return;
+    
+    const selectedPreset = loadedPresets[preset];
+    if (selectedPreset) {
+      applyPreset(selectedPreset);
+    }
+  }, [preset, waveGenerator, loadedPresets, applyPreset]);
 
   useEffect(() => {
     console.log('✅ Atmosphere + Ocean initialized');

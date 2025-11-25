@@ -386,3 +386,41 @@ let finalColor = mix(oceanColor, atmosphericFog, fade);
 1. Add atmosphere change detection for efficient updates
 2. Tune cube camera resolution vs quality
 3. Profile and optimize final solution
+
+
+## Shadows
+ Ocean Shadow Configuration:
+
+  Ocean Chunks (ocean-chunk.js:44-46):
+
+  this.mesh_.castShadow = false;     // Ocean doesn't cast 
+  shadows
+  this.mesh_.receiveShadow = true;   // Ocean DOES receive 
+  shadows
+
+  Renderer Shadow Setup (TakramAtmosphereOcean.tsx:424-425):
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  AtmosphereLight (TakramAtmosphereOcean.tsx:157):
+
+  light.castShadow = false;  // Atmosphere light doesn't cast 
+  shadows
+
+  Definitive Answer:
+
+  The ocean IS configured to receive shadows (receiveShadow = 
+  true) and shadow mapping IS enabled on the renderer. However,
+  there are currently no shadow-casting lights in the scene
+  because:
+
+  1. AtmosphereLight has castShadow = false - It's for
+  atmospheric scattering, not direct shadow-casting lighting
+  2. Test lights in TestLightingScene - Need to check if they
+  have castShadow = true
+  3. No other directional/point lights with shadow casting
+  enabled
+
+  The ocean is ready to receive shadows, but nothing in the
+  scene is currently casting them.

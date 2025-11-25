@@ -38,6 +38,7 @@ function useResource<T>(factory: () => T, deps: React.DependencyList): T | null 
         (newResource as any).dispose();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   
   return resource;

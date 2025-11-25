@@ -1,0 +1,37 @@
+{
+  "name": "Storm",
+  "description": "High-energy dangerous sea state - powerful directional waves with cross-swell interference",
+  "firstWave": {
+    "windSpeed": 28.0,
+    "windDirection": 0.0,
+    "fetch": 500000,
+    "spreadBlend": 0.2,
+    "swell": 1.0,
+    "peakEnhancement": 3.5,
+    "shortWaveFade": 0.1,
+    "fadeLimit": 0.2
+  },
+  "secondWave": {
+    "d_windSpeed": 20.0,
+    "d_windDirection": 4.188790204786391,
+    "d_fetch": 300000,
+    "d_spreadBlend": 0.2,
+    "d_swell": 0.8,
+    "d_peakEnhancement": 3.0,
+    "d_shortWaveFade": 0.1,
+    "d_fadeLimit": 0.2
+  },
+  "foam": {
+    "strength": 4.0,
+    "threshold": 1.0
+  },
+  "ocean": {
+    "lodScale": 8.0
+  },
+  "physics": {
+    "scenario": "High-energy storm conditions",
+    "windSpeed10m": "28.0 m/s",
+    "seaState": "Young sea (actively growing)",
+    "waveCharacteristics": "Huge waves, tightly focused energy, chaotic interference patterns"
+  }
+}

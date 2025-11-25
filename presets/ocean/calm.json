@@ -1,0 +1,37 @@
+{
+  "name": "Calm",
+  "description": "Tranquil day with light breezes - gentle ripples with multi-directional spreading",
+  "firstWave": {
+    "windSpeed": 5.0,
+    "windDirection": 0.0,
+    "fetch": 100000,
+    "spreadBlend": 1.0,
+    "swell": 0.2,
+    "peakEnhancement": 1.0,
+    "shortWaveFade": 0.01,
+    "fadeLimit": 0.01
+  },
+  "secondWave": {
+    "d_windSpeed": 2.0,
+    "d_windDirection": 4.188790204786391,
+    "d_fetch": 50000,
+    "d_spreadBlend": 1.0,
+    "d_swell": 0.1,
+    "d_peakEnhancement": 1.0,
+    "d_shortWaveFade": 0.01,
+    "d_fadeLimit": 0.01
+  },
+  "foam": {
+    "strength": 1.0,
+    "threshold": 1.5
+  },
+  "ocean": {
+    "lodScale": 3.0
+  },
+  "physics": {
+    "scenario": "Light breeze conditions",
+    "windSpeed10m": "5.0 m/s",
+    "seaState": "Fully developed (Pierson-Moskowitz)",
+    "waveCharacteristics": "Small amplitude, relaxed, multi-directional ripples"
+  }
+}
