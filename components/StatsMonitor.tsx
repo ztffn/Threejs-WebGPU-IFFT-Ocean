@@ -4,29 +4,17 @@ import { useEffect, useRef } from 'react';
 import { useControls } from 'leva';
 import Stats from 'three/addons/libs/stats.module.js';
 
-interface StatsMonitorProps {
-  onToggleChange?: (toggles: { showWater: boolean; showAtmosphere: boolean }) => void;
-}
-
-export default function StatsMonitor({ onToggleChange }: StatsMonitorProps) {
-  const { enableStats, showWater, showAtmosphere } = useControls('Performance Stats', {
-    enableStats: { value: true, label: 'Show Performance Stats' },
-    showWater: { value: true, label: 'Enable Ocean Rendering' },
-    showAtmosphere: { value: true, label: 'Enable Atmosphere Rendering' }
+export default function StatsMonitor() {
+  const { enableStats } = useControls('Performance Stats', {
+    enableStats: { value: true, label: 'Show Performance Stats' }
   });
 
-  // Notify parent component when toggles change
-  useEffect(() => {
-    onToggleChange?.({ showWater, showAtmosphere });
-  }, [showWater, showAtmosphere, onToggleChange]);
-
-  const statsRef = useRef<Stats>();
-  const containerRef = useRef<HTMLDivElement>();
+  const statsRef = useRef<Stats | undefined>(undefined);
 
   useEffect(() => {
     if (!enableStats) {
-      if (statsRef.current && containerRef.current) {
-        containerRef.current.removeChild(statsRef.current.dom);
+      if (statsRef.current) {
+        document.body.removeChild(statsRef.current.dom);
         statsRef.current = undefined;
       }
       return;

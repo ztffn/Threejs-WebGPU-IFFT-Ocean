@@ -22,6 +22,8 @@ import { Ellipsoid, Geodetic, radians } from '@takram/three-geospatial';
 import WaveGeneratorComponent from './WaveGenerator';
 import OceanChunks from './OceanChunks';
 import TestLightingScene from './TestLightingScene';
+import StatsMonitor from './StatsMonitor';
+import ShipModel from './ShipModel';
 
 // Simple resource hook (based on their pattern)
 function useResource<T>(factory: () => T, deps: React.DependencyList): T | null {
@@ -98,7 +100,7 @@ const Content: FC = () => {
 
   const sceneControls = useControls('Scene Objects', {
     showEarth: { value: false },
-    showTorusKnot: { value: true },
+    showTorusKnot: { value: false },
     torusKnotSize: { value: 0.3, min: 0.1, max: 1, step: 0.05 },
     torusKnotHeight: { value: 0.5, min: 0, max: 2, step: 0.1 },
     earthColor: { value: '#808080' },
@@ -373,7 +375,14 @@ const Content: FC = () => {
 
       {/* Test Lighting Scene (separate, non-polluting) */}
       <TestLightingScene />
+
+      {/* Ship Model (separate, non-polluting) */}
+      <ShipModel />
+
+      {/* Performance Stats Monitor (separate, non-polluting) */}
+      <StatsMonitor />
     </>
+    
   );
 };
 
