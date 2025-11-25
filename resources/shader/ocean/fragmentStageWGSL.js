@@ -113,7 +113,9 @@ export const fragmentStageWGSL = wgslFn(`
         // A sliding wavelength array for the three cascades would be a good solution. I'll test that out.
 
         let fade = smoothstep( 500.0, 4000.0, vViewDist );
-        let finalColor = mix( oceanColor, vec3<f32>( 0.0, 0.1, 0.2 ), fade );
+        // Use atmospheric horizon color for fog instead of hardcoded blue
+        var atmosphericFog = reflectionColor * 0.6 + SEACOLOR * 0.4; // Darken reflection for water depth
+        let finalColor = mix( oceanColor, atmosphericFog, fade );
         return vec4<f32>( finalColor, 1 );
 
     }

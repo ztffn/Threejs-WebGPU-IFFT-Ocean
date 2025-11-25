@@ -306,7 +306,7 @@ const Content: FC = () => {
     if (postProcessingData?.postProcessing) {
       postProcessingData.postProcessing.needsUpdate = true;
     }
-  }, [context, date, position, postProcessingData]);
+  }, [context, date, position]); // Removed postProcessingData from deps to prevent infinite loop
 
   useEffect(() => {
     console.log('✅ Atmosphere + Ocean initialized');
