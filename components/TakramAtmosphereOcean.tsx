@@ -82,8 +82,8 @@ const Content: FC = () => {
     
     // Atmosphere
     exposure: { value: 10, min: 0, max: 30, step: 0.5 },
-    moonIntensity: { value: 10, min: 0, max: 50, step: 1 },
-    starsIntensity: { value: 10, min: 0, max: 50, step: 1 },
+    moonIntensity: { value: 25, min: 0, max: 100, step: 1 }, // Increased for better night visibility
+    starsIntensity: { value: 20, min: 0, max: 100, step: 1 }, // Increased for better night visibility
     
     // Time
     dayOfYear: { value: 0, min: 0, max: 364, step: 1 },
@@ -105,8 +105,9 @@ const Content: FC = () => {
   });
 
   // Ocean color controls (for investigation - most colors are hardcoded in shader)
-  const { enableAtmosphereLight } = useControls('Ocean Atmosphere Integration', {
-    enableAtmosphereLight: { value: true, label: 'Enable Atmosphere Light' }
+  const { enableAtmosphereLight, nightAmbientLevel } = useControls('Ocean Atmosphere Integration', {
+    enableAtmosphereLight: { value: true, label: 'Enable Atmosphere Light' },
+    nightAmbientLevel: { value: 0.05, min: 0, max: 0.3, step: 0.01, label: 'Night Ambient Level' }
   });
 
   const oceanColorControls = useControls('Ocean Colors (Investigation)', {
@@ -154,6 +155,12 @@ const Content: FC = () => {
     return light;
   }, [context]);
 
+  // Create ambient light for nighttime visibility
+  const ambientLight = useResource(() => {
+    const light = new THREE.AmbientLight(0x6090d0, nightAmbientLevel); // Softer, less blue ambient
+    return light;
+  }, [nightAmbientLevel]);
+
   const lightRegistered = useRef(false);
   
   // Set camera on context when both are available
@@ -190,6 +197,18 @@ const Content: FC = () => {
       atmosphereLight.dispose();
     };
   }, [atmosphereLight, scene, enableAtmosphereLight]);
+
+  // Add ambient light for nighttime visibility
+  useEffect(() => {
+    if (!ambientLight || !scene) return;
+    
+    scene.add(ambientLight);
+    console.log('✅ Ambient light added for nighttime visibility');
+    
+    return () => {
+      scene.remove(ambientLight);
+    };
+  }, [ambientLight, scene]);
 
   // Post-processing with controls:
   const exposureUniformRef = useRef(uniform(exposure));
