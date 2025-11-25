@@ -21,6 +21,7 @@ import { Ellipsoid, Geodetic, radians } from '@takram/three-geospatial';
 
 import WaveGeneratorComponent from './WaveGenerator';
 import OceanChunks from './OceanChunks';
+import TestLightingScene from './TestLightingScene';
 
 // Simple resource hook (based on their pattern)
 function useResource<T>(factory: () => T, deps: React.DependencyList): T | null {
@@ -369,6 +370,9 @@ const Content: FC = () => {
           onOceanManagerReady={setOceanManager}
         />
       )}
+
+      {/* Test Lighting Scene (separate, non-polluting) */}
+      <TestLightingScene />
     </>
   );
 };
