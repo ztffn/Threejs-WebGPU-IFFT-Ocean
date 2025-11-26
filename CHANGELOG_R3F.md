@@ -1,5 +1,16 @@
 # Changelog - React Three Fiber Port
 
+## [1.1.0] - 2025-11-26
+
+### Added
+- Integrated @takram/three-atmosphere WebGPU context into the main ocean scene via `AtmosphereLayer`, wiring camera + geodetic uniforms, sun/moon/stars toggles, and propagating the computed sun vector into the ocean shading pipeline.
+- Enabled Takram aerial perspective, AgX tone mapping, optional lens flare, and star dome in `PostProcessing` by sharing the atmosphere context and registering the custom WebGPU `AtmosphereLight` with the renderer.
+- Expanded Leva controls to drive atmosphere latitude/longitude/altitude/time plus visibility toggles so lighting, sky background, and post effects stay in sync with the ocean cascades.
+- Added Takram verification routes (`/takram-atmosphere-ocean`, `/takram-baseline`, `/takram-simple`, `/takram-webgpu-baseline`, `/cloudTest`) to exercise the atmosphere integration alongside the R3F ocean.
+
+### Changed
+- Ocean chunks now consume the Takram-computed sun direction when available, keeping CDLOD lighting aligned with the active atmospheric state.
+
 ## [1.0.0] - 2025-11-22
 
 ### Added
