@@ -1,36 +1,34 @@
 'use client';
 
+import { OrbitControls } from '@react-three/drei';
 import {
-  GizmoHelper,
-  GizmoViewport,
-  OrbitControls,
-  Sphere,
-} from '@react-three/drei';
-import { Canvas, useThree, type ThreeElement } from '@react-three/fiber';
-import { useEffect, useRef, type FC } from 'react';
-import {
-  Matrix4,
-  Raycaster,
-  Vector2,
-  Vector3,
-  type ArrowHelper,
-  type Mesh,
-} from 'three';
-import { Ellipsoid } from '@takram/three-geospatial';
+  Canvas,
+  extend,
+  useFrame,
+  useThree,
+  type ThreeElement,
+} from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState, type FC } from 'react';
+import * as THREE from 'three/webgpu';
+import { Ellipsoid, Geodetic, PointOfView, radians } from '@takram/three-geospatial';
 import { EllipsoidMesh } from '@takram/three-geospatial/r3f';
 import {
   AtmosphereContextNode,
   AtmosphereLight,
   AtmosphereLightNode,
   skyBackground,
+  skyEnvironment,
 } from '@takram/three-atmosphere/webgpu';
 import {
   getECIToECEFRotationMatrix,
   getMoonDirectionECI,
   getSunDirectionECI,
 } from '@takram/three-atmosphere';
-import * as THREE from 'three/webgpu';
-import { extend } from '@react-three/fiber';
+import { TilesRenderer as TilesRendererClass } from '3d-tiles-renderer';
+import { CesiumIonAuthPlugin, TilesFadePlugin } from '3d-tiles-renderer/plugins';
+import { Matrix4, Vector3 } from 'three';
+import WaveGeneratorComponent from './WaveGenerator';
+import OceanChunks from './OceanChunks';
 
 extend({ AtmosphereLight });
 
@@ -40,50 +38,77 @@ declare module '@react-three/fiber' {
   }
 }
 
-const ellipsoid = new Ellipsoid(10, 10, 9);
-const raycaster = new Raycaster();
-const pointer = new Vector2();
-const matrix = new Matrix4();
-const east = new Vector3();
-const north = new Vector3();
-const up = new Vector3();
-const baseDate = new Date(Date.UTC(2025, 0, 1));
+const ellipsoid = Ellipsoid.WGS84;
+const targetGeodetic = new Geodetic(
+  radians(139.7671),
+  radians(35.6812),
+  20
+);
+const targetECEF = targetGeodetic.toECEF();
+const cameraPov = new PointOfView(12000, radians(180), radians(-35));
+const baseDate = new Date(Date.UTC(2025, 0, 1, 12, 0, 0));
+const oceanSize = 20000;
 
-const Scene: FC = () => {
+type SceneProps = {
+  oceanOffset: number;
+};
+
+const Scene: FC<SceneProps> = ({ oceanOffset }) => {
   const { camera, scene, gl } = useThree();
   const renderer = gl as unknown as THREE.WebGPURenderer;
-  const ellipsoidMeshRef = useRef<Mesh>(null);
-  const pointMeshRef = useRef<Mesh>(null);
-  const eastArrowRef = useRef<ArrowHelper>(null);
-  const northArrowRef = useRef<ArrowHelper>(null);
-  const upArrowRef = useRef<ArrowHelper>(null);
   const contextRef = useRef<AtmosphereContextNode | null>(null);
-  const lightRef = useRef<AtmosphereLight | null>(null);
+  const atmosphereLightRef = useRef<AtmosphereLight | null>(null);
+  const tilesRendererRef = useRef<TilesRendererClass | null>(null);
+  const oceanGroupRef = useRef<THREE.Group>(null);
+  const [skyReady, setSkyReady] = useState(false);
+  const [waveGenerator, setWaveGenerator] = useState<any>(null);
+  const [sunDirection, setSunDirection] = useState<Vector3 | null>(null);
+  const [oceanParent, setOceanParent] = useState<THREE.Group | null>(null);
+
+  const oceanMatrix = useMemo(() => {
+    const enu = new Matrix4();
+    const east = new Vector3();
+    const north = new Vector3();
+    const up = new Vector3();
+    ellipsoid.getEastNorthUpFrame(targetECEF, enu);
+    enu.extractBasis(east, north, up);
+    const basis = new Matrix4().makeBasis(east, up, north);
+    basis.setPosition(targetECEF);
+    if (oceanOffset !== 0) {
+      basis.multiply(new Matrix4().makeTranslation(0, oceanOffset, 0));
+    }
+    return basis;
+  }, [oceanOffset]);
 
   useEffect(() => {
-    [
-      eastArrowRef.current!,
-      northArrowRef.current!,
-      upArrowRef.current!,
-    ].forEach((arrow, index) => {
-      arrow.setColor(['red', 'green', 'blue'][index]);
-      arrow.setLength(1, 0.2, 0.2);
-    });
+    setOceanParent(oceanGroupRef.current);
   }, []);
 
-  // Atmosphere context and light
   useEffect(() => {
-    if (!renderer) return;
+    cameraPov.decompose(targetECEF, camera.position, camera.quaternion, camera.up);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    const context = contextRef.current;
+    if (context) {
+      Ellipsoid.WGS84.getNorthUpEastFrame(
+        targetECEF,
+        context.matrixWorldToECEF.value
+      );
+    }
+  }, [camera]);
+
+  useEffect(() => {
     const context = new AtmosphereContextNode();
     context.camera = camera;
     context.constrainCamera = false;
     context.correctAltitude = true;
-    context.matrixWorldToECEF.value.identity();
-    contextRef.current = context;
+    context.showGround = true;
+    Ellipsoid.WGS84.getNorthUpEastFrame(
+      targetECEF,
+      context.matrixWorldToECEF.value
+    );
 
-    // Simple fixed date/time at noon UTC
     const date = new Date(baseDate);
-    date.setUTCHours(12, 0, 0, 0);
     getECIToECEFRotationMatrix(date, context.matrixECIToECEF.value);
     getSunDirectionECI(date, context.sunDirectionECEF.value).applyMatrix4(
       context.matrixECIToECEF.value
@@ -92,21 +117,14 @@ const Scene: FC = () => {
       context.matrixECIToECEF.value
     );
 
-    // Hook sky background
-    (scene as any).backgroundNode = skyBackground(context);
-
     renderer.library.addLight(AtmosphereLightNode, AtmosphereLight);
-    const light = new AtmosphereLight(context, 500000);
-    light.visible = true;
-    scene.add(light);
-    lightRef.current = light;
+    (scene as any).environmentNode = skyEnvironment(context);
+    (scene as any).backgroundNode = skyBackground(context);
+    contextRef.current = context;
+    setSkyReady(true);
 
     return () => {
-      if (lightRef.current) {
-        scene.remove(lightRef.current);
-        lightRef.current.dispose();
-        lightRef.current = null;
-      }
+      (scene as any).environmentNode = null;
       (scene as any).backgroundNode = null;
       context.dispose();
       contextRef.current = null;
@@ -114,86 +132,193 @@ const Scene: FC = () => {
   }, [camera, renderer, scene]);
 
   useEffect(() => {
-    const handleMove = (event: MouseEvent) => {
-      const ellipsoidMesh = ellipsoidMeshRef.current!;
-      const pointMesh = pointMeshRef.current!;
-      const eastArrow = eastArrowRef.current!;
-      const northArrow = northArrowRef.current!;
-      const upArrow = upArrowRef.current!;
+    const cesiumToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN;
+    if (!cesiumToken) {
+      console.warn('Set NEXT_PUBLIC_CESIUM_ION_TOKEN to load Cesium tiles.');
+      return;
+    }
 
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    const tilesRenderer = new TilesRendererClass(
+      'https://assets.cesium.com/2767062/tileset.json'
+    );
+    tilesRenderer.setCamera(camera);
+    tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
 
-      raycaster.setFromCamera(pointer, camera);
-      const [intersection] = raycaster.intersectObjects([ellipsoidMesh]);
-      if (intersection == null) {
-        return;
-      }
-      const position = intersection.point;
-      ellipsoid.getEastNorthUpFrame(position, matrix);
-      pointMesh.position.copy(position);
-      eastArrow.position.copy(position);
-      northArrow.position.copy(position);
-      upArrow.position.copy(position);
-      matrix.extractBasis(east, north, up);
-      eastArrow.setDirection(east);
-      northArrow.setDirection(north);
-      upArrow.setDirection(up);
+    const authPlugin = new CesiumIonAuthPlugin({
+      apiToken: cesiumToken,
+      assetId: '2767062',
+      autoRefreshToken: true,
+    });
+    tilesRenderer.registerPlugin(authPlugin);
+    tilesRenderer.registerPlugin(new TilesFadePlugin({ fadeDuration: 1 }));
+
+    scene.add(tilesRenderer.group);
+    tilesRendererRef.current = tilesRenderer;
+
+    return () => {
+      scene.remove(tilesRenderer.group);
+      tilesRenderer.dispose();
+      tilesRendererRef.current = null;
     };
+  }, [camera, renderer, scene]);
 
-    window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
-  }, [camera]);
+  useFrame(() => {
+    const tilesRenderer = tilesRendererRef.current;
+    if (tilesRenderer) {
+      tilesRenderer.setCamera(camera);
+      tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
+      tilesRenderer.update();
+    }
+    const context = contextRef.current;
+    if (context) {
+      Ellipsoid.WGS84.getNorthUpEastFrame(
+        targetECEF,
+        context.matrixWorldToECEF.value
+      );
+      const now = new Date();
+      getECIToECEFRotationMatrix(now, context.matrixECIToECEF.value);
+      getSunDirectionECI(now, context.sunDirectionECEF.value).applyMatrix4(
+        context.matrixECIToECEF.value
+      );
+      getMoonDirectionECI(now, context.moonDirectionECEF.value).applyMatrix4(
+        context.matrixECIToECEF.value
+      );
+      const matrixECEFToWorld = new Matrix4()
+        .copy(context.matrixWorldToECEF.value)
+        .invert();
+      const sunWorld = new Vector3()
+        .copy(context.sunDirectionECEF.value)
+        .applyMatrix4(matrixECEFToWorld)
+        .normalize();
+      setSunDirection((prev) =>
+        prev && prev.equals(sunWorld) ? prev : sunWorld
+      );
+    }
+  });
 
   return (
     <>
-      <GizmoHelper alignment="top-left">
-        <GizmoViewport />
-      </GizmoHelper>
-      <OrbitControls />
-      <EllipsoidMesh ref={ellipsoidMeshRef} args={[ellipsoid.radii, 90, 45]}>
-        <meshBasicMaterial color="yellow" wireframe />
+      {contextRef.current ? (
+        <atmosphereLight
+          ref={atmosphereLightRef}
+          args={[contextRef.current, 40000]}
+          visible
+        />
+      ) : null}
+      {skyReady && atmosphereLightRef.current
+        ? (() => {
+            atmosphereLightRef.current.direct.value = true;
+            atmosphereLightRef.current.indirect.value = true;
+            return null;
+          })()
+        : null}
+      <ambientLight intensity={0.3} />
+      <directionalLight position={[1, 1, 1]} intensity={0.6} />
+      <OrbitControls
+        makeDefault
+        target={targetECEF}
+        enableDamping
+        minDistance={500}
+        maxDistance={200000}
+      />
+      <EllipsoidMesh args={[ellipsoid.radii, 90, 45]}>
+        <meshBasicMaterial color="#4b5563" wireframe />
       </EllipsoidMesh>
-      <Sphere ref={pointMeshRef} args={[0.1]}>
-        <meshBasicMaterial color="red" />
-      </Sphere>
-      <arrowHelper ref={eastArrowRef} />
-      <arrowHelper ref={northArrowRef} />
-      <arrowHelper ref={upArrowRef} />
+      <mesh position={targetECEF.toArray()}>
+        <sphereGeometry args={[150, 12, 12]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      <group ref={oceanGroupRef} matrixAutoUpdate={false} matrix={oceanMatrix}>
+        <WaveGeneratorComponent
+          onInitialized={(wg) => {
+            setWaveGenerator(wg);
+          }}
+        />
+        {waveGenerator ? (
+          <OceanChunks
+            waveGenerator={waveGenerator}
+            sunDirection={sunDirection}
+            parent={oceanParent}
+          />
+        ) : null}
+      </group>
     </>
   );
 };
 
 const GlobeOceanProto: FC = () => {
+  const [oceanOffset, setOceanOffset] = useState(5);
+
   return (
-    <Canvas
-      camera={{ fov: 30, position: [50, 0, 0], up: [0, 0, 1] }}
-      gl={async (glProps) => {
-        const renderer = new THREE.WebGPURenderer({
-          ...glProps,
-          antialias: true,
-          logarithmicDepthBuffer: true,
-        } as any);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.NoToneMapping;
-        await renderer.init();
-        renderer.setClearColor(0x101820);
-        // Guard capabilities for r3f
-        if (!renderer.capabilities) {
-          (renderer as any).capabilities = {};
-        }
-        if (!(renderer.capabilities as any).getMaxAnisotropy) {
-          (renderer.capabilities as any).getMaxAnisotropy = () => 0;
-        }
-        return renderer;
-      }}
-      style={{ width: '100vw', height: '100vh', background: '#101820' }}
-    >
-      <Scene />
-    </Canvas>
+    <>
+      <Canvas
+        camera={{ fov: 45, near: 1, far: 2e8 }}
+        gl={async (glProps) => {
+          const renderer = new THREE.WebGPURenderer({
+            ...glProps,
+            antialias: true,
+            logarithmicDepthBuffer: true,
+          } as any);
+          renderer.setPixelRatio(window.devicePixelRatio);
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+          renderer.toneMapping = THREE.NoToneMapping;
+          await renderer.init();
+          renderer.setClearColor(0x101820);
+          const rendererAny = renderer as any;
+          if (!rendererAny.capabilities) {
+            rendererAny.capabilities = {};
+          }
+          if (!rendererAny.capabilities.getMaxAnisotropy) {
+            rendererAny.capabilities.getMaxAnisotropy = () => 0;
+          }
+          return renderer;
+        }}
+        style={{ width: '100vw', height: '100vh', background: '#101820' }}
+      >
+        <Scene oceanOffset={oceanOffset} />
+      </Canvas>
+      <div
+        style={{
+          position: 'fixed',
+          top: 12,
+          left: 12,
+          padding: '8px 12px',
+          background: 'rgba(0,0,0,0.6)',
+          color: '#e5e7eb',
+          borderRadius: 8,
+          fontSize: 12,
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <span style={{ opacity: 0.8 }}>Ocean offset (m)</span>
+        <input
+          type="range"
+          min="-200"
+          max="200"
+          step="1"
+          value={oceanOffset}
+          onChange={(e) => setOceanOffset(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          value={oceanOffset}
+          style={{
+            width: 64,
+            background: '#111827',
+            color: '#e5e7eb',
+            border: '1px solid #374151',
+            borderRadius: 4,
+            padding: '4px 6px',
+          }}
+          onChange={(e) => setOceanOffset(Number(e.target.value))}
+        />
+        <span style={{ opacity: 0.8 }}>m</span>
+      </div>
+    </>
   );
 };
 
