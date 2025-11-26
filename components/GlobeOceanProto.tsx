@@ -26,7 +26,7 @@ import {
 } from '@takram/three-atmosphere';
 import { TilesRenderer as TilesRendererClass } from '3d-tiles-renderer';
 import { CesiumIonAuthPlugin, TilesFadePlugin } from '3d-tiles-renderer/plugins';
-import { Matrix4, Vector3 } from 'three';
+import { Matrix4, PerspectiveCamera, Scene as ThreeScene, Vector3 } from 'three';
 import WaveGeneratorComponent from './WaveGenerator';
 import OceanChunks from './OceanChunks';
 
@@ -45,6 +45,7 @@ const targetGeodetic = new Geodetic(
   20
 );
 const targetECEF = targetGeodetic.toECEF();
+const targetECEFNeg = targetECEF.clone().multiplyScalar(-1);
 const cameraPov = new PointOfView(12000, radians(180), radians(-35));
 const baseDate = new Date(Date.UTC(2025, 0, 1, 12, 0, 0));
 const oceanSize = 20000;
@@ -64,6 +65,9 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
   const [waveGenerator, setWaveGenerator] = useState<any>(null);
   const [sunDirection, setSunDirection] = useState<Vector3 | null>(null);
   const [oceanParent, setOceanParent] = useState<THREE.Group | null>(null);
+  const [oceanCamera] = useState(
+    () => new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2e8)
+  );
 
   const oceanMatrix = useMemo(() => {
     const enu = new Matrix4();
@@ -73,7 +77,6 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
     ellipsoid.getEastNorthUpFrame(targetECEF, enu);
     enu.extractBasis(east, north, up);
     const basis = new Matrix4().makeBasis(east, up, north);
-    basis.setPosition(targetECEF);
     if (oceanOffset !== 0) {
       basis.multiply(new Matrix4().makeTranslation(0, oceanOffset, 0));
     }
@@ -86,8 +89,20 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
 
   useEffect(() => {
     cameraPov.decompose(targetECEF, camera.position, camera.quaternion, camera.up);
+    camera.position.add(targetECEFNeg);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+    // Keep ocean camera rebased near origin for precision
+    if ((camera as any).isPerspectiveCamera) {
+      oceanCamera.position.copy(camera.position).sub(targetECEF);
+      oceanCamera.quaternion.copy(camera.quaternion);
+      oceanCamera.up.copy(camera.up);
+      oceanCamera.fov = (camera as PerspectiveCamera).fov;
+      oceanCamera.near = camera.near;
+      oceanCamera.far = camera.far;
+      oceanCamera.updateProjectionMatrix();
+      oceanCamera.updateMatrixWorld();
+    }
     const context = contextRef.current;
     if (context) {
       Ellipsoid.WGS84.getNorthUpEastFrame(
@@ -95,7 +110,7 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
         context.matrixWorldToECEF.value
       );
     }
-  }, [camera]);
+  }, [camera, oceanCamera]);
 
   useEffect(() => {
     const context = new AtmosphereContextNode();
@@ -165,6 +180,7 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
   useFrame(() => {
     const tilesRenderer = tilesRendererRef.current;
     if (tilesRenderer) {
+      tilesRenderer.group.position.copy(targetECEFNeg);
       tilesRenderer.setCamera(camera);
       tilesRenderer.setResolutionFromRenderer(camera, renderer as any);
       tilesRenderer.update();
@@ -194,6 +210,16 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
         prev && prev.equals(sunWorld) ? prev : sunWorld
       );
     }
+    if ((camera as any).isPerspectiveCamera) {
+      oceanCamera.position.copy(camera.position).sub(targetECEF);
+      oceanCamera.quaternion.copy(camera.quaternion);
+      oceanCamera.up.copy(camera.up);
+      oceanCamera.fov = (camera as PerspectiveCamera).fov;
+      oceanCamera.near = camera.near;
+      oceanCamera.far = camera.far;
+      oceanCamera.updateProjectionMatrix();
+      oceanCamera.updateMatrixWorld();
+    }
   });
 
   return (
@@ -216,19 +242,24 @@ const Scene: FC<SceneProps> = ({ oceanOffset }) => {
       <directionalLight position={[1, 1, 1]} intensity={0.6} />
       <OrbitControls
         makeDefault
-        target={targetECEF}
+        target={[0, 0, 0]}
         enableDamping
         minDistance={500}
         maxDistance={200000}
       />
-      <EllipsoidMesh args={[ellipsoid.radii, 90, 45]}>
+      <EllipsoidMesh args={[ellipsoid.radii, 90, 45]} position={targetECEFNeg.toArray()}>
         <meshBasicMaterial color="#4b5563" wireframe />
       </EllipsoidMesh>
-      <mesh position={targetECEF.toArray()}>
+      <mesh position={[0, 0, 0]}>
         <sphereGeometry args={[150, 12, 12]} />
         <meshBasicMaterial color="#ef4444" />
       </mesh>
-      <group ref={oceanGroupRef} matrixAutoUpdate={false} matrix={oceanMatrix}>
+      <group
+        ref={oceanGroupRef}
+        matrixAutoUpdate={false}
+        matrix={oceanMatrix}
+        position={[0, 0, 0]}
+      >
         <WaveGeneratorComponent
           onInitialized={(wg) => {
             setWaveGenerator(wg);

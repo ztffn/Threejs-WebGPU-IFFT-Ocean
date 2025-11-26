@@ -11,13 +11,15 @@ interface OceanChunksProps {
   sunDirection: THREE.Vector3 | null;
   onOceanManagerReady?: (oceanManager: any) => void;
   parent?: THREE.Object3D | null;
+  cameraOverride?: THREE.PerspectiveCamera | null;
 }
 
-export default function OceanChunks({ waveGenerator, sunDirection, onOceanManagerReady, parent }: OceanChunksProps) {
-  const { gl, scene: defaultScene, camera } = useThree();
+export default function OceanChunks({ waveGenerator, sunDirection, onOceanManagerReady, parent, cameraOverride }: OceanChunksProps) {
+  const { gl, scene: defaultScene, camera: defaultCamera } = useThree();
   const oceanManagerRef = useRef<any>(null);
   const initializedRef = useRef(false);
   const scene = parent ?? defaultScene;
+  const camera = cameraOverride ?? defaultCamera;
 
   useEffect(() => {
     if (initializedRef.current || !waveGenerator || !gl) {
