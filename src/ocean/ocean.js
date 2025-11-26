@@ -5,11 +5,6 @@ import { ocean_builder_threaded } from './ocean-builder-threaded.js';
 import { quadtree } from './quadtree.js';
 import { utils } from './utils.js';
 import { OceanMaterial } from './ocean-material.js';
-import { vec4 } from "three/tsl";
-import { skybox } from './sky.js';
-
-
-
 class OceanChunkManager extends entity.Component {
 
 	constructor( params ) {
@@ -55,7 +50,6 @@ class OceanChunkManager extends entity.Component {
 		//this.material_ = new THREE.MeshBasicNodeMaterial();
 		//this.material_.colorNode = vec4(1, 0, 0, 1);
 
-		this.InitSky( params );
 		this.InitOcean( params );
 
 
@@ -64,71 +58,6 @@ class OceanChunkManager extends entity.Component {
 			min_lod_radius: ocean_constants.QT_OCEAN_MIN_LOD_RADIUS,
 			lod_layers: ocean_constants.QT_OCEAN_MIN_NUM_LAYERS,
 			min_node_size: ocean_constants.QT_OCEAN_MIN_CELL_SIZE,
-		} );
-
-	}
-
-
-	InitSky( params ) {
-			
-		const sky = new skybox.Sky(params);
-		sky.layers.set(2);
-		sky.scale.setScalar(500000);
-		//sky.rotation.z = Math.PI/2;
-		params.scene.add(sky);
-		
-		// Store sky reference so it can be accessed for updates
-		this.sky_ = sky;
-
-		//this.scene_.add(sky);
-
-		params.guiParams.sky = {
-			rayleigh: 3,
-			elevation: 2,
-			azimuth: 180,
-			turbidity: 10,
-			mieCoefficient: 0.005,
-			mieDirectionalG: 0.7,
-			up: new THREE.Vector3(0, 1, 0),
-			exposure: 1
-		}
-
-		sky.material.colorNode.parameters.turbidity.value = params.guiParams.sky.turbidity;
-		sky.material.colorNode.parameters.mieCoefficient.value = params.guiParams.sky.mieCoefficient;
-		sky.material.colorNode.parameters.mieDirectionalG.value = params.guiParams.sky.mieDirectionalG;
-		sky.material.colorNode.parameters.elevation.value = params.guiParams.sky.elevation;
-		sky.material.colorNode.parameters.exposure.value = params.guiParams.sky.exposure;
-		sky.material.colorNode.parameters.up.value = params.guiParams.sky.up;
-		sky.material.colorNode.parameters.rayleigh.value = params.guiParams.sky.rayleigh;
-	
-		const phi = THREE.MathUtils.degToRad( 90 - params.guiParams.sky.elevation );
-		const theta = THREE.MathUtils.degToRad( params.guiParams.sky.azimuth );
-	
-		this.sun.setFromSphericalCoords( 1, phi, theta );
-	
-		sky.material.colorNode.parameters.sunPosition.value.copy( this.sun );
-	
-
-			
-		this.params_.waveGenerator.skySet.add( params.guiParams.sky, "rayleigh", 0, 4, 0.001 ).onChange( ( value ) => {
-			sky.material.colorNode.parameters.rayleigh.value = value;
-		} );
-		this.params_.waveGenerator.skySet.add( params.guiParams.sky, "elevation", 0, 90, 0.01 ).onChange( ( value ) => {
-			sky.material.colorNode.parameters.elevation.value = value;
-	
-			const phi = THREE.MathUtils.degToRad( 90 - value );
-			const theta = THREE.MathUtils.degToRad(params.guiParams.sky.azimuth);
-	
-			this.sun.setFromSphericalCoords( 1, phi, theta );
-			sky.material.colorNode.parameters.sunPosition.value.copy(this.sun);
-	
-		} );
-		this.params_.waveGenerator.skySet.add( params.guiParams.sky, "azimuth", -180, 180, 0.1 ).onChange( ( value ) => {
-			const phi = THREE.MathUtils.degToRad( 90 - params.guiParams.sky.elevation );
-			const theta = THREE.MathUtils.degToRad( value );
-	
-			this.sun.setFromSphericalCoords( 1, phi, theta );
-			sky.material.colorNode.parameters.sunPosition.value.copy( this.sun );
 		} );
 
 	}
@@ -147,6 +76,13 @@ class OceanChunkManager extends entity.Component {
 			this.material_.wireframe = params.guiParams.ocean.wireframe;
 		} );
 
+	}
+
+	SetSunDirection(direction) {
+		if (!direction) {
+			return;
+		}
+		this.sun.copy(direction);
 	}
 
 

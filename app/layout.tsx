@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './three-setup';
+import './react-devtools-fix';
 
 export const metadata: Metadata = {
   title: 'WebGPU IFFT Ocean',

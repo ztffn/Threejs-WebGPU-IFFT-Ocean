@@ -1,5 +1,4 @@
 import {THREE} from '../three-defs.js';
-import {RGBMLoader} from '../three-defs.js';
 import { texture, cubeTexture, attribute, uniform, vec3, vec4} from "three/tsl";
 import {entity} from '../entity.js';
 import {ocean_constants} from './ocean-constants.js';
@@ -42,9 +41,6 @@ class OceanMaterial extends entity.Component {
 			vMorphedPosition: vertexStageWGSL.vMorphedPosition,
 			vDisplacedPosition: vertexStageWGSL.vDisplacedPosition,
 			vCascadeScales: vertexStageWGSL.vCascadeScales,
-			vTexelCoord0: vertexStageWGSL.vTexelCoord0,
-			vTexelCoord1: vertexStageWGSL.vTexelCoord1,
-			vTexelCoord2: vertexStageWGSL.vTexelCoord2,
 			position: attribute("position"),
 			vindex: attribute("vindex"),
 			width: attribute("width"),
@@ -82,7 +78,7 @@ class OceanMaterial extends entity.Component {
 			sunPosition: uniform(params.sunPosition)    
 		}
 
-		this.oceanMaterial = new THREE.MeshBasicNodeMaterial();
+		this.oceanMaterial = new THREE.MeshStandardNodeMaterial();
 		this.oceanMaterial.positionNode = vertexStageWGSL.vertexStageWGSL(wgslShaderParams);
 		this.oceanMaterial.colorNode = fragmentStageWGSL(wgslShaderParams);
 		this.oceanMaterial.side = THREE.DoubleSide;

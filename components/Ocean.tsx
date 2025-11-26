@@ -8,6 +8,8 @@ import OceanScene from './OceanScene';
 import OceanControls from './OceanControls';
 import PostProcessingControls from './PostProcessingControls';
 import dynamic from 'next/dynamic';
+import type { AtmosphereContextNode } from '@takram/three-atmosphere/webgpu';
+import type { AtmosphereSettings } from './AtmosphereLayer';
 
 // Dynamically import PostProcessing to avoid SSR issues
 const PostProcessing = dynamic(() => import('./PostProcessing'), {
@@ -20,6 +22,19 @@ export default function Ocean() {
   const [waveGenerator, setWaveGenerator] = useState<any>(null);
   const [oceanManager, setOceanManager] = useState<any>(null);
   const [postProcessingSettings, setPostProcessingSettings] = useState<any>(null);
+  const [atmosphereSettings, setAtmosphereSettings] = useState<AtmosphereSettings>({
+    latitude: 47.6062,
+    longitude: -122.3321,
+    height: 0,
+    utcHour: 12,
+    enableLight: true,
+    showGround: true,
+    showSun: true,
+    showMoon: true,
+    showStars: true,
+  });
+  const [atmosphereContext, setAtmosphereContext] = useState<AtmosphereContextNode | null>(null);
+  const [sunDirection, setSunDirection] = useState<THREE.Vector3 | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -57,7 +72,11 @@ export default function Ocean() {
       {/* Leva Controls - rendered outside Canvas, only on client */}
       {isClient && waveGenerator && oceanManager && (
         <>
-          <OceanControls waveGenerator={waveGenerator} oceanManager={oceanManager} />
+          <OceanControls
+            waveGenerator={waveGenerator}
+            oceanManager={oceanManager}
+            onAtmosphereChange={setAtmosphereSettings}
+          />
           <PostProcessingControls onPostProcessingChange={setPostProcessingSettings} />
         </>
       )}
@@ -89,9 +108,17 @@ export default function Ocean() {
         <OceanScene 
           onWaveGeneratorReady={setWaveGenerator}
           onOceanManagerReady={setOceanManager}
+          atmosphereSettings={atmosphereSettings}
+          onAtmosphereContextReady={setAtmosphereContext}
+          sunDirection={sunDirection}
+          onSunDirectionChange={setSunDirection}
         />
-        {postProcessingSettings?.enabled && (
-          <PostProcessing {...postProcessingSettings} />
+        {postProcessingSettings && atmosphereContext && (
+          <PostProcessing
+            {...postProcessingSettings}
+            atmosphereContext={atmosphereContext}
+            atmosphereSettings={atmosphereSettings}
+          />
         )}
       </Canvas>
     </div>

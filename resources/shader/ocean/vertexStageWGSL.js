@@ -7,9 +7,6 @@ export const vertexStageWGSL = (() => {
     const vDisplacedPosition = varyingProperty("vec3", "vDisplacedPosition");
     const vMorphedPosition = varyingProperty("vec3", "vMorphedPosition");
     const vCascadeScales = varyingProperty("vec3", "vCascadeScales");
-    const vTexelCoord0 = varyingProperty("vec2", "vTexelCoord0");
-    const vTexelCoord1 = varyingProperty("vec2", "vTexelCoord1");
-    const vTexelCoord2 = varyingProperty("vec2", "vTexelCoord2");
 
 
     const vertexStageWGSL = wgslFn(`
@@ -64,9 +61,7 @@ export const vertexStageWGSL = (() => {
         varyings.vCascadeScales = vec3<f32>(lod0, lod1, lod2 );
         varyings.vDisplacedPosition = displacedPosition;
         varyings.vMorphedPosition = morphedPosition;
-        varyings.vTexelCoord0 = vtexelCoord0;
-        varyings.vTexelCoord1 = vtexelCoord1;
-        varyings.vTexelCoord2 = vtexelCoord2;
+        // Varyings for texel coordinates removed; they are recomputed in the fragment shader.
         
         return vec4<f32>(displacedPosition, 1.0);
     }
@@ -176,7 +171,7 @@ export const vertexStageWGSL = (() => {
     }
 
 
-`, [ vDisplacedPosition, vMorphedPosition, vCascadeScales, vTexelCoord0, vTexelCoord1, vTexelCoord2 ]);
+`, [ vDisplacedPosition, vMorphedPosition, vCascadeScales ]);
 
 
 
@@ -185,10 +180,7 @@ export const vertexStageWGSL = (() => {
         vertexStageWGSL,
         vDisplacedPosition,
         vMorphedPosition,
-        vCascadeScales,
-        vTexelCoord0,
-        vTexelCoord1,
-        vTexelCoord2
+        vCascadeScales
     }
 
 

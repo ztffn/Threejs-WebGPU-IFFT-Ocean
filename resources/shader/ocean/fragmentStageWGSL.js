@@ -30,9 +30,6 @@ export const fragmentStageWGSL = wgslFn(`
         vMorphedPosition: vec3<f32>,
         vDisplacedPosition: vec3<f32>,
         vCascadeScales: vec4<f32>,
-        vTexelCoord0: vec2<f32>,
-        vTexelCoord1: vec2<f32>,
-        vTexelCoord2: vec2<f32>,
         envTexture: texture_cube<f32>,
         envTexture_sampler: sampler,
         sunPosition: vec3<f32>,
@@ -105,7 +102,10 @@ export const fragmentStageWGSL = wgslFn(`
         
         oceanColor = mix(oceanColor, vec3<f32>(1), foam_mix_factor);
 
-        oceanColor = mix(SEACOLOR, oceanColor, vCascadeScales.x);
+        // FIXED: Preserve atmospheric lighting and reflections at distance
+        // Instead of destroying all colors, blend with background that includes reflections
+        var atmosphericBackground = reflectionColor * 0.4 + SEACOLOR * 0.6;
+        oceanColor = mix(atmosphericBackground, oceanColor, vCascadeScales.x);
 
 
         // Since the mipmaps quickly deplete over distance, a fog at that distance is necessary to avoid unsightly jitter. 
@@ -113,7 +113,9 @@ export const fragmentStageWGSL = wgslFn(`
         // A sliding wavelength array for the three cascades would be a good solution. I'll test that out.
 
         let fade = smoothstep( 500.0, 4000.0, vViewDist );
-        let finalColor = mix( oceanColor, vec3<f32>( 0.0, 0.1, 0.2 ), fade );
+        // Use atmospheric horizon color for fog instead of hardcoded blue
+        var atmosphericFog = reflectionColor * 0.6 + SEACOLOR * 0.4; // Darken reflection for water depth
+        let finalColor = mix( oceanColor, atmosphericFog, fade );
         return vec4<f32>( finalColor, 1 );
 
     }

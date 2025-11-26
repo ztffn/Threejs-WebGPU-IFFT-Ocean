@@ -5,15 +5,27 @@ import { useEffect, useState } from 'react';
 import { OrbitControls } from '@react-three/drei';
 import WaveGeneratorComponent from './WaveGenerator';
 import OceanChunks from './OceanChunks';
-import Sky from './Sky';
-import PlayerController from './PlayerController';
+import AtmosphereLayer, { AtmosphereSettings } from './AtmosphereLayer';
+import type { AtmosphereContextNode } from '@takram/three-atmosphere/webgpu';
+import type { Vector3 } from 'three';
 
 interface OceanSceneProps {
   onWaveGeneratorReady?: (waveGen: any) => void;
   onOceanManagerReady?: (oceanManager: any) => void;
+  atmosphereSettings: AtmosphereSettings;
+  onAtmosphereContextReady?: (context: AtmosphereContextNode | null) => void;
+  sunDirection: Vector3 | null;
+  onSunDirectionChange?: (direction: Vector3) => void;
 }
 
-export default function OceanScene({ onWaveGeneratorReady, onOceanManagerReady }: OceanSceneProps) {
+export default function OceanScene({
+  onWaveGeneratorReady,
+  onOceanManagerReady,
+  atmosphereSettings,
+  onAtmosphereContextReady,
+  sunDirection,
+  onSunDirectionChange,
+}: OceanSceneProps) {
   const { gl, scene, camera } = useThree();
   const [waveGenerator, setWaveGenerator] = useState<any>(null);
   const [oceanManager, setOceanManager] = useState<any>(null);
@@ -52,9 +64,11 @@ export default function OceanScene({ onWaveGeneratorReady, onOceanManagerReady }
         maxPolarAngle={Math.PI / 2}
       />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[100, 100, 100]} intensity={1} castShadow />
+      <AtmosphereLayer
+        settings={atmosphereSettings}
+        onContextReady={onAtmosphereContextReady}
+        onSunDirectionChange={onSunDirectionChange}
+      />
 
       {/* Wave Generator (IFFT Compute) */}
       <WaveGeneratorComponent 
@@ -69,7 +83,8 @@ export default function OceanScene({ onWaveGeneratorReady, onOceanManagerReady }
       {/* Ocean Chunks (CDLOD Geometry) - Sky is created here */}
       {waveGenerator && (
         <OceanChunks 
-          waveGenerator={waveGenerator} 
+          waveGenerator={waveGenerator}
+          sunDirection={sunDirection}
           onOceanManagerReady={(manager) => {
             setOceanManager(manager);
             if (onOceanManagerReady) {

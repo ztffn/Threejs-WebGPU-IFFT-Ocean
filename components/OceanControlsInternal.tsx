@@ -1,19 +1,39 @@
 'use client';
 
 import { useControls, Leva } from 'leva';
-import { useEffect } from 'react';
-import * as THREE from 'three/webgpu';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
+import type { AtmosphereSettings } from './AtmosphereLayer';
 // @ts-ignore - JS module
 import { wave_constants } from '../src/waves/wave-constants.js';
 
 interface OceanControlsInternalProps {
   waveGenerator: any;
   oceanManager: any;
-  onSkyChange?: (params: any) => void;
-  onOceanChange?: (params: any) => void;
+  onAtmosphereChange?: (params: AtmosphereSettings) => void;
 }
 
-export default function OceanControlsInternal({ waveGenerator, oceanManager, onSkyChange, onOceanChange }: OceanControlsInternalProps) {
+const DEFAULT_ATMOSPHERE: AtmosphereSettings = {
+  latitude: 47.6062,
+  longitude: -122.3321,
+  height: 0,
+  utcHour: 12,
+  enableLight: true,
+  showGround: true,
+  showSun: true,
+  showMoon: true,
+  showStars: true,
+};
+
+export default function OceanControlsInternal({
+  waveGenerator,
+  oceanManager,
+  onAtmosphereChange,
+}: OceanControlsInternalProps) {
+  const atmosphereRef = useRef<AtmosphereSettings>({ ...DEFAULT_ATMOSPHERE });
+  const emitAtmosphereChange = useCallback(() => {
+    onAtmosphereChange?.({ ...atmosphereRef.current });
+  }, [onAtmosphereChange]);
+
   // Build first wave spectrum controls object
   const firstWaveControls: any = {};
   for (const param in wave_constants.FIRST_WAVE_DATASET) {
@@ -77,51 +97,88 @@ export default function OceanControlsInternal({ waveGenerator, oceanManager, onS
     },
   });
 
-  // Sky Controls
-  const skyParams = useControls('Sky', {
-    rayleigh: {
-      value: 3,
-      min: 0,
-      max: 4,
-      step: 0.001,
-    },
-    elevation: {
-      value: 2,
-      min: 0,
-      max: 90,
-      step: 0.01,
-    },
-    azimuth: {
-      value: 180,
-      min: -180,
-      max: 180,
-      step: 0.1,
-    },
-    turbidity: {
-      value: 10,
-      min: 0,
-      max: 20,
-      step: 0.1,
-    },
-    mieCoefficient: {
-      value: 0.005,
-      min: 0,
-      max: 0.1,
-      step: 0.001,
-    },
-    mieDirectionalG: {
-      value: 0.7,
-      min: 0,
-      max: 1,
-      step: 0.01,
-    },
-    exposure: {
-      value: 1,
-      min: 0,
-      max: 2,
-      step: 0.1,
-    },
-  });
+  const atmosphereControls = useMemo(
+    () => ({
+      latitude: {
+        value: DEFAULT_ATMOSPHERE.latitude,
+        min: -90,
+        max: 90,
+        step: 0.01,
+        onChange: (value: number) => {
+          atmosphereRef.current.latitude = value;
+          emitAtmosphereChange();
+        },
+      },
+      longitude: {
+        value: DEFAULT_ATMOSPHERE.longitude,
+        min: -180,
+        max: 180,
+        step: 0.01,
+        onChange: (value: number) => {
+          atmosphereRef.current.longitude = value;
+          emitAtmosphereChange();
+        },
+      },
+      height: {
+        value: DEFAULT_ATMOSPHERE.height,
+        min: -500,
+        max: 5000,
+        step: 1,
+        onChange: (value: number) => {
+          atmosphereRef.current.height = value;
+          emitAtmosphereChange();
+        },
+      },
+      utcHour: {
+        value: DEFAULT_ATMOSPHERE.utcHour,
+        min: 0,
+        max: 24,
+        step: 0.25,
+        onChange: (value: number) => {
+          atmosphereRef.current.utcHour = value;
+          emitAtmosphereChange();
+        },
+      },
+      enableLight: {
+        value: DEFAULT_ATMOSPHERE.enableLight,
+        onChange: (value: boolean) => {
+          atmosphereRef.current.enableLight = value;
+          emitAtmosphereChange();
+        },
+      },
+      showGround: {
+        value: DEFAULT_ATMOSPHERE.showGround,
+        onChange: (value: boolean) => {
+          atmosphereRef.current.showGround = value;
+          emitAtmosphereChange();
+        },
+      },
+      showSun: {
+        value: DEFAULT_ATMOSPHERE.showSun,
+        onChange: (value: boolean) => {
+          atmosphereRef.current.showSun = value;
+          emitAtmosphereChange();
+        },
+      },
+      showMoon: {
+        value: DEFAULT_ATMOSPHERE.showMoon,
+        onChange: (value: boolean) => {
+          atmosphereRef.current.showMoon = value;
+          emitAtmosphereChange();
+        },
+      },
+      showStars: {
+        value: DEFAULT_ATMOSPHERE.showStars,
+        onChange: (value: boolean) => {
+          atmosphereRef.current.showStars = value;
+          emitAtmosphereChange();
+        },
+      },
+    }),
+    [emitAtmosphereChange]
+  );
+
+  useControls('Atmosphere', atmosphereControls);
 
   // Update wave constants when controls change
   useEffect(() => {
@@ -156,28 +213,6 @@ export default function OceanControlsInternal({ waveGenerator, oceanManager, onS
     }
   }, [firstWaveParams, secondWaveParams, foamParams, oceanParams.lodScale, waveGenerator]);
 
-  // Update sky parameters - directly update the sky material as in the original code
-  useEffect(() => {
-    if (!oceanManager?.sky_ || !oceanManager?.sun) return;
-
-    const sky = oceanManager.sky_;
-    const sun = oceanManager.sun;
-
-    // Update sky material parameters directly (matching original InitSky logic)
-    sky.material.colorNode.parameters.rayleigh.value = skyParams.rayleigh;
-    sky.material.colorNode.parameters.turbidity.value = skyParams.turbidity;
-    sky.material.colorNode.parameters.mieCoefficient.value = skyParams.mieCoefficient;
-    sky.material.colorNode.parameters.mieDirectionalG.value = skyParams.mieDirectionalG;
-    sky.material.colorNode.parameters.elevation.value = skyParams.elevation;
-    sky.material.colorNode.parameters.exposure.value = skyParams.exposure;
-
-    // Update sun position based on elevation and azimuth
-    const phi = THREE.MathUtils.degToRad(90 - skyParams.elevation);
-    const theta = THREE.MathUtils.degToRad(skyParams.azimuth);
-    sun.setFromSphericalCoords(1, phi, theta);
-    sky.material.colorNode.parameters.sunPosition.value.copy(sun);
-  }, [skyParams, oceanManager]);
-
   // Update ocean wireframe - directly update the ocean material
   useEffect(() => {
     if (!oceanManager?.material_) return;
@@ -185,6 +220,9 @@ export default function OceanControlsInternal({ waveGenerator, oceanManager, onS
     oceanManager.material_.wireframe = oceanParams.wireframe;
   }, [oceanParams.wireframe, oceanManager]);
 
+  useEffect(() => {
+    emitAtmosphereChange();
+  }, [emitAtmosphereChange]);
+
   return <Leva collapsed />;
 }
-
